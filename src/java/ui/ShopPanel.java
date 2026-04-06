@@ -24,10 +24,9 @@ public class ShopPanel extends JPanel {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBorder(new EmptyBorder(10, 8, 10, 8));
 
-        add(makeTitle("Магазин"));
+        add(makeTitle("🛒  Магазин"));
         add(Box.createVerticalStrut(8));
 
-        // Кнопка купить весь комплект tier 1
         JButton buyAll = makeBuyAllButton();
         buyAll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         add(buyAll);
@@ -41,8 +40,8 @@ public class ShopPanel extends JPanel {
 
     private JButton makeBuyAllButton() {
         JButton btn = makeRoundedButton(
-                "Купить комплект (все детали, базовый уровень)",
-                new Color(35, 95, 58), UIColors.GREEN
+                "⚡  Купить комплект (все детали, базовый тир)",
+                new Color(35, 110, 65), Color.WHITE
         );
         btn.addActionListener(e -> {
             for (ComponentType t : ComponentType.values()) engine.buyPart(t, 1);
@@ -57,8 +56,8 @@ public class ShopPanel extends JPanel {
         ComponentCard(ComponentType type) {
             this.type = type;
             setOpaque(false);
-            setLayout(new BorderLayout(8, 4));
-            setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
+            setLayout(new BorderLayout(8, 0));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
             setBorder(new EmptyBorder(0, 0, 0, 0));
             buildContent();
         }
@@ -68,6 +67,11 @@ public class ShopPanel extends JPanel {
             JPanel top = new JPanel(new BorderLayout(8, 0));
             top.setOpaque(false);
             top.setBorder(new EmptyBorder(8, 10, 4, 10));
+
+            // Иконка компонента
+            JLabel iconLbl = new JLabel(type.icon);
+            iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+            iconLbl.setPreferredSize(new Dimension(28, 28));
 
             JPanel nameBlock = new JPanel();
             nameBlock.setOpaque(false);
@@ -83,27 +87,28 @@ public class ShopPanel extends JPanel {
 
             nameBlock.add(nameLbl);
             nameBlock.add(modelLbl);
+
+            top.add(iconLbl,   BorderLayout.WEST);
             top.add(nameBlock, BorderLayout.CENTER);
 
             // ── Нижняя строка: кнопки покупки + продажа ──────────
             JPanel btnsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
             btnsRow.setOpaque(false);
 
-            // Три кнопки покупки с ценой
-            int[] tiers   = {1, 2, 3};
-            Color[] colors = {UIColors.BTN_T1, UIColors.BTN_T2, UIColors.BTN_T3};
-            String[] tierNames = {"Базовый", "Средний", "Топовый"};
+            // ИСПРАВЛЕНО: читаемые подписи с ценой на новой строке через HTML
+            Color[] bgColors   = {UIColors.BTN_T1, UIColors.BTN_T2, UIColors.BTN_T3};
+            String[] tierNames = {"Базовый", "Средний", "Топ"};
 
             for (int i = 0; i < 3; i++) {
-                final int tier = tiers[i];
-                long price = type.priceForTier(tier);
-                JButton btn = makeRoundedButton(
-                        tierNames[i] + "  " + price + "м",
-                        colors[i], UIColors.lighten(colors[i], 0.15f)
-                );
-                btn.setPreferredSize(new Dimension(110, 28));
+                final int tier  = i + 1;
+                long price      = type.priceForTier(tier);
+                String label    = "<html><center>" + tierNames[i]
+                        + "<br><b>" + price + " м</b></center></html>";
+
+                JButton btn = makeRoundedButton(label, bgColors[i], Color.WHITE);
+                btn.setPreferredSize(new Dimension(95, 38));
                 btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btn.setToolTipText(type.displayName + " уровень " + tier + " — цена: " + price + " монет");
+                btn.setToolTipText(type.displayName + " тир " + tier + " — цена: " + price + " монет");
                 btn.addActionListener(e -> {
                     engine.buyPart(type, tier);
                     onAction.run();
@@ -112,19 +117,13 @@ public class ShopPanel extends JPanel {
             }
 
             // Кнопка продажи
-            JButton sellBtn = makeRoundedButton("Продать", new Color(80, 30, 30), UIColors.RED);
-            sellBtn.setPreferredSize(new Dimension(80, 28));
+            JButton sellBtn = makeRoundedButton("Продать\n50%", new Color(90, 28, 28), UIColors.RED);
+            sellBtn.setPreferredSize(new Dimension(70, 38));
             sellBtn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            sellBtn.setToolTipText("Продать одну деталь со склада за 50% цены");
+            sellBtn.setToolTipText("Продать одну деталь со склада (возврат 50% цены)");
             sellBtn.addActionListener(e -> {
-                int inStock = state.getInventory().getOrDefault(type, 0);
-                if (inStock > 0) {
-                    int tier = state.getTierInInv().getOrDefault(type, 1);
-                    long refund = type.priceForTier(tier) / 2;
-                    // Убираем из инвентаря через engine
-                    engine.sellPart(type);
-                    onAction.run();
-                }
+                engine.sellPart(type);
+                onAction.run();
             });
             btnsRow.add(sellBtn);
 
@@ -154,7 +153,7 @@ public class ShopPanel extends JPanel {
                 Color c = getModel().isPressed()
                         ? UIColors.darken(bg, 0.15f)
                         : getModel().isRollover()
-                        ? UIColors.lighten(bg, 0.08f)
+                        ? UIColors.lighten(bg, 0.12f)
                         : bg;
                 g2.setColor(c);
                 g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
@@ -171,7 +170,6 @@ public class ShopPanel extends JPanel {
         return btn;
     }
 
-    // Совместимость со старым кодом
     public static JButton styledButton(String text, Color bg) {
         return makeRoundedButton(text, bg, Color.WHITE);
     }

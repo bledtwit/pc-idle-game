@@ -15,9 +15,9 @@ public class WorkbenchPanel extends JPanel {
     private final GameState  state;
     private final Runnable   onAction;
 
-    private final JLabel     statusLabel;
-    private final JPanel     slotsPanel;
-    private final JButton    buildBtn;
+    private final JLabel       statusLabel;
+    private final JPanel       slotsPanel;
+    private final JButton      buildBtn;
     private final JProgressBar progressBar;
 
     public WorkbenchPanel(GameEngine engine, GameState state, Runnable onAction) {
@@ -29,18 +29,17 @@ public class WorkbenchPanel extends JPanel {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBorder(new EmptyBorder(10, 8, 10, 8));
 
-        // ── Заголовок ─────────────────────────────────────────────
         add(makeTitle("🔧  Верстак"));
         add(Box.createVerticalStrut(8));
 
-        // ── Прогресс-бар сборки ───────────────────────────────────
+        // ── Прогресс-бар ──────────────────────────────────────────
         progressBar = makeProgressBar();
-        progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
+        progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
         progressBar.setAlignmentX(LEFT_ALIGNMENT);
         add(progressBar);
         add(Box.createVerticalStrut(10));
 
-        // ── Слоты деталей ─────────────────────────────────────────
+        // ── Слоты ─────────────────────────────────────────────────
         slotsPanel = new JPanel();
         slotsPanel.setOpaque(false);
         slotsPanel.setLayout(new BoxLayout(slotsPanel, BoxLayout.Y_AXIS));
@@ -67,7 +66,6 @@ public class WorkbenchPanel extends JPanel {
         refresh();
     }
 
-    // ── Обновление состояния ──────────────────────────────────────
     public void refresh() {
         slotsPanel.removeAll();
 
@@ -86,13 +84,11 @@ public class WorkbenchPanel extends JPanel {
             slotsPanel.add(Box.createVerticalStrut(5));
         }
 
-        // прогресс
         progressBar.setValue(filled);
         progressBar.setString(filled + " / 7");
 
-        // статус
         if (filled == ComponentType.values().length) {
-            statusLabel.setText("✅  Всё готово — можно собирать!");
+            statusLabel.setText("✅  Всё готово — нажмите «Собрать»!");
             statusLabel.setForeground(UIColors.GREEN);
             buildBtn.setEnabled(true);
         } else {
@@ -105,7 +101,7 @@ public class WorkbenchPanel extends JPanel {
         slotsPanel.repaint();
     }
 
-    // ── Карточка слота ────────────────────────────────────────────
+    // ── Карточка слота — ИСПРАВЛЕНО: убраны "·", нормальные кнопки ──
     private JPanel buildSlotCard(ComponentType type,
                                  boolean installed,
                                  int inStock,
@@ -129,7 +125,7 @@ public class WorkbenchPanel extends JPanel {
         };
         card.setOpaque(false);
         card.setBorder(new EmptyBorder(6, 10, 6, 10));
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 54));
 
         // ── Иконка ────────────────────────────────────────────────
         JLabel iconLbl = new JLabel(installed ? "✅" : type.icon);
@@ -148,13 +144,13 @@ public class WorkbenchPanel extends JPanel {
         String subText;
         Color  subColor;
         if (installed) {
-            subText  = "Tier " + tier + " · установлена";
+            subText  = "Тир " + tier + " · установлена";
             subColor = UIColors.GREEN;
         } else if (inStock > 0) {
-            subText  = "На складе: " + inStock + "  (Tier " + tier + ")";
+            subText  = "На складе: " + inStock + "  (Тир " + tier + ")";
             subColor = UIColors.ACCENT;
         } else {
-            subText  = "Нет на складе";
+            subText  = "Нет на складе — купите в магазине";
             subColor = UIColors.TEXT_MUTED;
         }
 
@@ -166,18 +162,49 @@ public class WorkbenchPanel extends JPanel {
         info.add(Box.createVerticalStrut(2));
         info.add(subLbl);
 
-        // ── Кнопка установки ──────────────────────────────────────
-        JButton instBtn = ShopPanel.makeTierButton(
-                installed ? "·" : "⬆",
-                installed ? UIColors.GREEN_DIM : UIColors.BTN_INST,
-                "Установить " + type.displayName
-        );
-        instBtn.setPreferredSize(new Dimension(36, 30));
-        instBtn.setEnabled(!installed && inStock > 0);
-        instBtn.addActionListener(e -> {
-            engine.installPart(type);
-            onAction.run();
-        });
+        // ── ИСПРАВЛЕНО: кнопка установки с нормальным текстом ────
+        JButton instBtn;
+        if (installed) {
+            // Уже установлена — кнопка не нужна, показываем заглушку-метку
+            instBtn = new JButton("Уст.") {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setColor(UIColors.GREEN_DIM);
+                    g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 6, 6));
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            instBtn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            instBtn.setForeground(UIColors.GREEN);
+            instBtn.setEnabled(false);
+        } else if (inStock > 0) {
+            instBtn = ShopPanel.makeRoundedButton("⬆ Уст.", UIColors.BTN_INST, Color.WHITE);
+            instBtn.addActionListener(e -> {
+                engine.installPart(type);
+                onAction.run();
+            });
+        } else {
+            instBtn = new JButton("Нет") {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setColor(UIColors.BG_CARD);
+                    g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 6, 6));
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            instBtn.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            instBtn.setForeground(UIColors.TEXT_MUTED);
+            instBtn.setEnabled(false);
+        }
+
+        instBtn.setPreferredSize(new Dimension(60, 30));
+        instBtn.setContentAreaFilled(false);
+        instBtn.setBorderPainted(false);
+        instBtn.setFocusPainted(false);
+        if (inStock > 0 && !installed)
+            instBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         card.add(iconLbl, BorderLayout.WEST);
         card.add(info,    BorderLayout.CENTER);
@@ -192,12 +219,8 @@ public class WorkbenchPanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                         RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // трек
                 g2.setColor(UIColors.BG_CARD);
                 g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
-
-                // заполнение
                 float ratio = (float) getValue() / getMaximum();
                 int   fw    = (int)(getWidth() * ratio);
                 if (fw > 0) {
@@ -208,8 +231,6 @@ public class WorkbenchPanel extends JPanel {
                     g2.setPaint(gp);
                     g2.fill(new RoundRectangle2D.Float(0, 0, fw, getHeight(), 8, 8));
                 }
-
-                // текст
                 if (isStringPainted()) {
                     g2.setFont(new Font("Segoe UI", Font.BOLD, 9));
                     g2.setColor(Color.WHITE);
@@ -238,11 +259,11 @@ public class WorkbenchPanel extends JPanel {
                         RenderingHints.VALUE_ANTIALIAS_ON);
                 Color base = !isEnabled()
                         ? new Color(40, 35, 60)
-                        : getModel().isPressed()
+                        : (getModel().isPressed()
                         ? new Color(80, 50, 150)
-                        : getModel().isRollover()
+                        : (getModel().isRollover()
                         ? new Color(120, 85, 210)
-                        : new Color(100, 65, 185);
+                        : new Color(86, 50, 173)));
                 g2.setColor(base);
                 g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 12, 12));
                 if (isEnabled()) {
@@ -267,7 +288,6 @@ public class WorkbenchPanel extends JPanel {
         return btn;
     }
 
-    // ── Утилиты ───────────────────────────────────────────────────
     private JLabel makeTitle(String text) {
         JLabel l = new JLabel(text);
         l.setFont(new Font("Segoe UI", Font.BOLD, 15));

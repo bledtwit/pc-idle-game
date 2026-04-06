@@ -1,5 +1,6 @@
 package ui;
 
+import logic.GameEngine;
 import model.Computer;
 import model.GameState;
 
@@ -11,26 +12,33 @@ import java.util.List;
 
 public class PcListPanel extends JPanel {
 
-    private final GameState state;
-    private final JPanel    listArea;
-    private final JLabel    totalLabel;
-    private final JPanel    billPanel;
-    private final JLabel    billLabel;
-    private final JLabel    timerLabel;
-    private final JButton   payBtn;
+    private final GameState   state;
+    private final GameEngine  engine;
+    private final JPanel      listArea;
+    private final JLabel      totalLabel;
+    private final JPanel      billPanel;
+    private final JLabel      billLabel;
+    private final JLabel      timerLabel;
+    private final JButton     payBtn;
+    private       Runnable    onAction;
 
+    // Конструктор без engine (обратная совместимость)
     public PcListPanel(GameState state) {
-        this.state = state;
+        this(state, null, () -> {});
+    }
+
+    public PcListPanel(GameState state, GameEngine engine, Runnable onAction) {
+        this.state    = state;
+        this.engine   = engine;
+        this.onAction = onAction;
 
         setOpaque(false);
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBorder(new EmptyBorder(10, 8, 10, 8));
 
-        // ── Заголовок ─────────────────────────────────────────────
         add(makeTitle("🖥️  Работающие ПК"));
         add(Box.createVerticalStrut(6));
 
-        // ── Суммарный доход ───────────────────────────────────────
         totalLabel = new JLabel("Суммарный доход: 0 к/с");
         totalLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         totalLabel.setForeground(UIColors.TEXT_MUTED);
@@ -38,13 +46,11 @@ public class PcListPanel extends JPanel {
         add(totalLabel);
         add(Box.createVerticalStrut(10));
 
-        // ── Панель счёта за электричество ─────────────────────────
         billPanel = buildBillPanel();
         billPanel.setAlignmentX(LEFT_ALIGNMENT);
         add(billPanel);
         add(Box.createVerticalStrut(10));
 
-        // ── Список ПК ─────────────────────────────────────────────
         listArea = new JPanel();
         listArea.setOpaque(false);
         listArea.setLayout(new BoxLayout(listArea, BoxLayout.Y_AXIS));
@@ -57,7 +63,6 @@ public class PcListPanel extends JPanel {
         scroll.setAlignmentX(LEFT_ALIGNMENT);
         add(scroll);
 
-        // Получаем ссылки на нужные компоненты внутри billPanel
         billLabel  = (JLabel)  billPanel.getClientProperty("billLabel");
         timerLabel = (JLabel)  billPanel.getClientProperty("timerLabel");
         payBtn     = (JButton) billPanel.getClientProperty("payBtn");
@@ -65,30 +70,27 @@ public class PcListPanel extends JPanel {
         refresh();
     }
 
-    // ── Обновление ────────────────────────────────────────────────
     public void refresh() {
-        // суммарный доход
         long total = state.getTotalIncome();
         totalLabel.setText("Суммарный доход: "
                 + (total >= 0 ? "+" : "") + HeaderPanel.formatNum(total) + " к/с");
         totalLabel.setForeground(total >= 0 ? UIColors.GREEN : UIColors.RED);
 
-        // счёт за электричество
         refreshBillPanel();
 
-        // список ПК
         listArea.removeAll();
         List<Computer> pcs = state.getRunningPCs();
 
         if (pcs.isEmpty()) {
-            JLabel empty = new JLabel("Нет собранных ПК");
+            JLabel empty = new JLabel("Нет собранных ПК — соберите на верстаке");
             empty.setFont(new Font("Segoe UI", Font.ITALIC, 12));
             empty.setForeground(UIColors.TEXT_MUTED);
             empty.setAlignmentX(LEFT_ALIGNMENT);
             listArea.add(empty);
         } else {
-            for (Computer pc : pcs) {
-                listArea.add(buildPcCard(pc));
+            for (int i = 0; i < pcs.size(); i++) {
+                final int idx = i;
+                listArea.add(buildPcCard(pcs.get(i), idx));
                 listArea.add(Box.createVerticalStrut(6));
             }
         }
@@ -97,7 +99,6 @@ public class PcListPanel extends JPanel {
         listArea.repaint();
     }
 
-    // ── Панель счёта за электричество ─────────────────────────────
     private JPanel buildBillPanel() {
         JPanel panel = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
@@ -122,7 +123,6 @@ public class PcListPanel extends JPanel {
         panel.setBorder(new EmptyBorder(10, 12, 10, 12));
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
 
-        // строка 1: иконка + заголовок
         JPanel row1 = new JPanel(new BorderLayout());
         row1.setOpaque(false);
 
@@ -138,13 +138,10 @@ public class PcListPanel extends JPanel {
         row1.add(elIcon,  BorderLayout.WEST);
         row1.add(billLbl, BorderLayout.EAST);
 
-        // строка 2: таймер
         JLabel timerLbl = new JLabel("Следующий счёт через: --");
         timerLbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         timerLbl.setForeground(UIColors.TEXT_MUTED);
-        timerLbl.setAlignmentX(LEFT_ALIGNMENT);
 
-        // строка 3: прогресс-бар таймера
         JProgressBar timerBar = new JProgressBar(0, GameState.BILL_INTERVAL) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -167,7 +164,6 @@ public class PcListPanel extends JPanel {
         timerBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
         timerBar.setPreferredSize(new Dimension(0, 6));
 
-        // строка 4: кнопка оплаты (видна только при долге)
         JButton payButton = new JButton("💳  Оплатить долг") {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -197,7 +193,6 @@ public class PcListPanel extends JPanel {
             refresh();
         });
 
-        // сохраняем ссылки через clientProperty
         panel.putClientProperty("billLabel",  billLbl);
         panel.putClientProperty("timerLabel", timerLbl);
         panel.putClientProperty("timerBar",   timerBar);
@@ -243,8 +238,8 @@ public class PcListPanel extends JPanel {
         billPanel.repaint();
     }
 
-    // ── Карточка ПК ───────────────────────────────────────────────
-    private JPanel buildPcCard(Computer pc) {
+    // ── Карточка ПК — ДОБАВЛЕНА кнопка продажи ───────────────────
+    private JPanel buildPcCard(Computer pc, int index) {
         JPanel card = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -265,15 +260,13 @@ public class PcListPanel extends JPanel {
         card.setOpaque(false);
         card.setLayout(new BorderLayout(10, 0));
         card.setBorder(new EmptyBorder(10, 12, 10, 12));
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90));
 
-        // ── Левый блок: иконка ────────────────────────────────────
         boolean paused = state.isPowerDebt();
         JLabel iconLbl = new JLabel(paused ? "⛔" : "🖥️");
         iconLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
         iconLbl.setPreferredSize(new Dimension(40, 40));
 
-        // ── Центр: название + доход ───────────────────────────────
         JPanel info = new JPanel();
         info.setOpaque(false);
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
@@ -300,12 +293,48 @@ public class PcListPanel extends JPanel {
         info.add(Box.createVerticalStrut(2));
         info.add(netLbl);
 
+        // ── Кнопка продажи ПК ────────────────────────────────────
+        JButton sellBtn = new JButton("<html><center>Продать<br>30%</center></html>") {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                Color base = getModel().isPressed()
+                        ? new Color(100, 20, 20)
+                        : getModel().isRollover()
+                        ? new Color(150, 35, 35)
+                        : new Color(120, 28, 28);
+                g2.setColor(base);
+                g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 8, 8));
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        sellBtn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        sellBtn.setForeground(UIColors.RED);
+        sellBtn.setContentAreaFilled(false);
+        sellBtn.setBorderPainted(false);
+        sellBtn.setFocusPainted(false);
+        sellBtn.setPreferredSize(new Dimension(55, 40));
+        sellBtn.setToolTipText("Продать ПК (возврат 30% стоимости деталей)");
+        sellBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        sellBtn.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(
+                    this, "Продать ПК #" + pc.getId() + "?",
+                    "Продажа ПК", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                state.sellPC(index);
+                if (onAction != null) onAction.run();
+                refresh();
+            }
+        });
+
         card.add(iconLbl, BorderLayout.WEST);
         card.add(info,    BorderLayout.CENTER);
+        card.add(sellBtn, BorderLayout.EAST);
         return card;
     }
 
-    // ── Утилиты ───────────────────────────────────────────────────
     private JLabel makeTitle(String text) {
         JLabel l = new JLabel(text);
         l.setFont(new Font("Segoe UI", Font.BOLD, 15));
